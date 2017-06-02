@@ -1,0 +1,761 @@
+<export><workspace name="MLW Bz Demo"><query name="1.Create Roles" focus="false" listorder="2" taborder="2" active="true" database="9818679024805626011" server="13031079473005161838" database-name="Security" server-name="Admin" mode="javascript">'use strict';
+
+// This must run against the Security database
+// Create roles
+
+declareUpdate();
+var sec = require("/MarkLogic/security.xqy");
+
+if (!sec.roleExists("US_Read")) sec.createRole("US_Read","US_Read",null, null, null);
+if (!sec.roleExists("ID_read")) sec.createRole("ID_read","ID_read",null, null, null);
+if (!sec.roleExists("Compliance")) sec.createRole("Compliance","Compliance",null, null, null);
+if (!sec.roleExists("Risk")) sec.createRole("Risk","Risk",null, null, null);
+
+"U5Adv Create Roles";
+</query><query name="1.Create Users" focus="false" listorder="3" taborder="3" active="true" database="9818679024805626011" server="13031079473005161838" database-name="Security" server-name="Admin" mode="javascript">'use strict';
+
+// This must run against the Security database
+// Create users
+
+declareUpdate();
+var sec = require("/MarkLogic/security.xqy");
+
+if (!sec.userExists("US_CallCenter")) sec.createUser("US_CallCenter","CallCenter","password",["US_Read","ID_read"],null,null);
+if (!sec.userExists("US_Financial_Risk_Officer")) sec.createUser("US_Financial_Risk_Officer","Financial Risk Officer","password",["US_Read","Risk"],null,null);
+if (!sec.userExists("US_Compliance_Admin")) sec.createUser("US_Compliance_Admin","Compliance Admin","password",["US_Read","ID_read","Risk","Compliance"],null,null);
+
+"U5Adv Create Users";
+
+</query><query name="1.Insert Document" focus="false" listorder="4" taborder="4" active="true" database="4481800011143609398" server="6116481189375756513" database-name="MLW2017_Demo" server-name="App-Services" mode="javascript">'use strict';
+
+//Must run againt the MLW2017_Demo
+
+declareUpdate();
+var doc = {
+  "policy" : {
+    "acess": "US Read", 
+    "client" : {
+      "access" : "ID_read",
+      "name" : "Paul", 
+      "last4ssn" : "5664",
+   },
+    "clientSSN" : { 
+      "access" : "Compliance",
+      "ssn" : "999-99-5664"
+    },
+    "clientIncome" : {
+      "access" : "Risk",
+      "income" : "44,444"
+    },
+    "info" : {
+      "access" : "Risk",
+      "propertyType" : "Home",
+      "premium": 432,
+      "assetValue" : 750000,
+     }
+  }
+}
+xdmp.documentInsert("demo_policy.json", doc, {permissions : [xdmp.permission("US_Read", "read")]})
+
+
+
+</query><query name="1.Protected Paths" focus="false" listorder="5" taborder="5" active="true" database="9818679024805626011" server="13031079473005161838" database-name="Security" server-name="Admin" mode="javascript">'use strict';
+
+// This must run against the Security Database
+
+declareUpdate();
+var sec = require("/MarkLogic/security.xqy");
+
+sec.protectPath("//client[access='ID_read']", null, xdmp.permission("ID_read", "read", "element")),
+sec.protectPath("//clientSSN", null, xdmp.permission("Compliance", "read", "element")),
+sec.protectPath("//clientIncome", null, xdmp.permission("Risk", "read", "element")),
+sec.protectPath("//info[access='Risk']", null, xdmp.permission("Risk", "read", "element"))
+
+</query><query name="1.Rolesets" focus="false" listorder="6" taborder="6" active="true" database="9818679024805626011" server="13031079473005161838" database-name="Security" server-name="Admin" mode="javascript">'use strict';
+
+// This must run against the Security Database. Since the query does only fn.doc(),  this step is optional.
+
+declareUpdate();
+var sec = require("/MarkLogic/security.xqy");
+
+var rolesets = xdmp.eval('xdmp.databaseNodeQueryRolesets(fn.doc())', null, 
+  {
+    "database" : xdmp.database("MLW2017_Demo")
+  }
+)
+sec.addQueryRolesets(rolesets)
+
+
+</query><query name="Old Eval Query" focus="false" listorder="22" taborder="22" active="true" database="4481800011143609398" server="6116481189375756513" database-name="MLW2017_Demo" server-name="App-Services" mode="javascript">//Must run againt the MLW2017_Demo
+//This query demostrating ELS uses xdmp.eval, which is not recommended as it allows injections. Use the JS indirections as demostrated in 1.ELS Query
+
+var log1 = "---------- With CallCenter ---------------------";
+var result1 = xdmp.eval('fn.doc("demo_policy.json")', null, 
+  {
+    "userId" : xdmp.user("US_CallCenter")
+  }
+);
+
+var log2 = "---------- With Financial_Risk_Officer ---------------------";
+var result2 = xdmp.eval('fn.doc("demo_policy.json")', null, 
+  {
+    "userId" : xdmp.user("US_Financial_Risk_Officer")
+  }
+);
+
+var log3 = "---------- With Compliance_Admin ---------------------";
+var result3 = xdmp.eval('fn.doc("demo_policy.json")', null, 
+  {
+    "userId" : xdmp.user("US_Compliance_Admin")
+  }
+);
+
+[log1,result1,log2,result2,log3,result3]
+
+</query><query name="x.Clear Paths" focus="false" listorder="20" taborder="20" active="true" database="9818679024805626011" server="13031079473005161838" database-name="Security" server-name="Admin" mode="javascript">'use strict';
+
+// This must run against the Security Database
+// Remove any existing protected-paths and query-rolesets
+
+declareUpdate();
+var sec = require("/MarkLogic/security.xqy");
+
+var unprotect = 
+  'declareUpdate();\
+  var sec = require("/MarkLogic/security.xqy");\
+  var paths = fn.collection("http://marklogic.com/xdmp/protected-paths");\
+  for (var path of paths) \
+    sec.unprotectPath(fn.data(path.xpath("//sec:path-expression")), null);';
+xdmp.eval(unprotect);
+
+xdmp.sleep(5);
+
+</query><query name="2.Redaction Rules" focus="false" listorder="8" taborder="8" active="true" database="12237058196143102848" server="6116481189375756513" database-name="Schemas" server-name="App-Services" mode="xquery">xquery version "1.0-ml";
+
+(: This must run against the Schema database :)
+let $COLLECTION_DEMO_DEV := "developer_demo"
+
+let $demo-client-name :=
+&lt;rule xml:lang="zxx" xmlns="http://marklogic.com/xdmp/redaction"&gt;
+    &lt;description&gt;Random # name&lt;/description&gt;
+    &lt;path&gt;/policy/client/name&lt;/path&gt;
+    &lt;method&gt;
+        &lt;function&gt;mask-random&lt;/function&gt;
+    &lt;/method&gt;
+    &lt;options&gt;
+        &lt;dictionary&gt;/workshop/redaction/dictionary/names.json&lt;/dictionary&gt;
+    &lt;/options&gt;
+&lt;/rule&gt;
+
+let $demo-premium :=
+&lt;rule xml:lang="zxx" xmlns="http://marklogic.com/xdmp/redaction"&gt;
+    &lt;description&gt;Random # for premium&lt;/description&gt;
+    &lt;path&gt;//premium&lt;/path&gt;
+    &lt;method&gt;
+        &lt;function&gt;mask-deterministic&lt;/function&gt;
+    &lt;/method&gt;
+    &lt;options&gt;
+        &lt;character&gt;numeric&lt;/character&gt;
+        &lt;length&gt;5&lt;/length&gt;
+    &lt;/options&gt;
+&lt;/rule&gt;
+
+let $demo-ssn4 :=
+&lt;rule xml:lang="zxx" xmlns="http://marklogic.com/xdmp/redaction"&gt;
+    &lt;description&gt;Hide last 4 digits&lt;/description&gt;
+    &lt;path&gt;//last4ssn&lt;/path&gt;
+    &lt;method&gt;
+        &lt;function&gt;conceal&lt;/function&gt;
+    &lt;/method&gt;
+    &lt;options&gt;
+    &lt;/options&gt;
+&lt;/rule&gt;
+
+let $demo-income :=
+&lt;rule xml:lang="zxx" xmlns="http://marklogic.com/xdmp/redaction"&gt;
+    &lt;description&gt;Random # for income&lt;/description&gt;
+    &lt;path&gt;//income&lt;/path&gt;
+    &lt;method&gt;
+        &lt;function&gt;mask-random&lt;/function&gt;
+    &lt;/method&gt;
+    &lt;options&gt;
+        &lt;character&gt;numeric&lt;/character&gt;
+        &lt;length&gt;6&lt;/length&gt;
+    &lt;/options&gt;
+&lt;/rule&gt;
+
+let $demo-ssn :=
+&lt;rule xml:lang="zxx" xmlns="http://marklogic.com/xdmp/redaction"&gt;
+    &lt;description&gt;Random SSN&lt;/description&gt;
+    &lt;path&gt;//ssn&lt;/path&gt;
+    &lt;method&gt;
+        &lt;function&gt;redact-us-ssn&lt;/function&gt;
+    &lt;/method&gt;
+  &lt;options&gt;
+    &lt;level&gt;full-random&lt;/level&gt;
+  &lt;/options&gt;
+&lt;/rule&gt;
+
+let $demo-asset :=
+&lt;rule xml:lang="zxx" xmlns="http://marklogic.com/xdmp/redaction"&gt;
+    &lt;description&gt;Random # for asset value&lt;/description&gt;
+    &lt;path&gt;//assetValue&lt;/path&gt;
+    &lt;method&gt;
+        &lt;function&gt;mask-random&lt;/function&gt;
+    &lt;/method&gt;
+    &lt;options&gt;
+        &lt;character&gt;numeric&lt;/character&gt;
+        &lt;length&gt;6&lt;/length&gt;
+    &lt;/options&gt;
+&lt;/rule&gt;
+
+let $save-rule := (
+  xdmp:document-insert(
+    "/demo/redaction/rule/demo-client-name",
+    $demo-client-name,
+    &lt;options xmlns="xdmp:document-insert"&gt;
+      &lt;collections&gt;&lt;collection&gt;{$COLLECTION_DEMO_DEV}&lt;/collection&gt;&lt;/collections&gt;
+    &lt;/options&gt;
+   ),
+   xdmp:document-insert(
+    "/demo/redaction/rule/demo-ssn",
+    $demo-ssn,
+    &lt;options xmlns="xdmp:document-insert"&gt;
+      &lt;collections&gt;&lt;collection&gt;{$COLLECTION_DEMO_DEV}&lt;/collection&gt;&lt;/collections&gt;
+    &lt;/options&gt;
+   ),
+   xdmp:document-insert(
+    "/demo/redaction/rule/demo-premium",
+    $demo-premium,
+    &lt;options xmlns="xdmp:document-insert"&gt;
+      &lt;collections&gt;&lt;collection&gt;{$COLLECTION_DEMO_DEV}&lt;/collection&gt;&lt;/collections&gt;
+    &lt;/options&gt;
+   ),
+   xdmp:document-insert(
+    "/demo/redaction/rule/demo-income",
+    $demo-income,
+    &lt;options xmlns="xdmp:document-insert"&gt;
+      &lt;collections&gt;&lt;collection&gt;{$COLLECTION_DEMO_DEV}&lt;/collection&gt;&lt;/collections&gt;
+    &lt;/options&gt;
+   ),
+   xdmp:document-insert(
+    "/demo/redaction/rule/demo-ssn4",
+    $demo-ssn4,
+    &lt;options xmlns="xdmp:document-insert"&gt;
+      &lt;collections&gt;&lt;collection&gt;{$COLLECTION_DEMO_DEV}&lt;/collection&gt;&lt;/collections&gt;
+    &lt;/options&gt;
+   ),
+   xdmp:document-insert(
+    "/demo/redaction/rule/demo-asset",
+    $demo-asset,
+    &lt;options xmlns="xdmp:document-insert"&gt;
+      &lt;collections&gt;&lt;collection&gt;{$COLLECTION_DEMO_DEV}&lt;/collection&gt;&lt;/collections&gt;
+    &lt;/options&gt;
+   )
+)
+
+return ()
+</query><query name="2.Redact " focus="false" listorder="10" taborder="10" active="true" database="4481800011143609398" server="6116481189375756513" database-name="MLW2017_Demo" server-name="App-Services" mode="xquery">xquery version "1.0-ml";
+
+(: This must run against the MLW2017_Demo database :)
+
+import module namespace rdt = "http://marklogic.com/xdmp/redaction" at
+  "/MarkLogic/redaction.xqy";
+  
+
+let $COLLECTION_DEV := "developer_demo"
+let $rules := ($COLLECTION_DEV)
+let $doc := fn:doc("demo_policy.json")
+let $_validate := rdt:rule-validate($rules)
+return rdt:redact($doc, $rules)
+
+</query><query name="2.Dictionary" focus="false" listorder="9" taborder="9" active="true" database="12237058196143102848" server="6116481189375756513" database-name="Schemas" server-name="App-Services" mode="javascript">'use strict';
+declareUpdate();
+
+// This must run against the Schema database
+
+var dictionaryNames =
+{"dictionary": {
+    "entry": [
+	"JAMES",
+	"JOHN",
+	"ROBERT",
+	"MICHAEL",
+	"MARY",
+	"WILLIAM",
+	"DAVID",
+	"RICHARD",
+	"CHARLES",
+	"JOSEPH",
+	"THOMAS",
+	"PATRICIA",
+	"CHRISTOPHER",
+	"LINDA",
+	"BARBARA",
+	"DANIEL",
+	"PAUL",
+	"MARK",
+	"ELIZABETH",
+	"DONALD",
+	"JENNIFER",
+	"GEORGE",
+	"MARIA",
+	"KENNETH",
+	"SUSAN",
+	"STEVEN",
+	"EDWARD",
+	"MARGARET",
+	"BRIAN",
+	"RONALD",
+	"DOROTHY",
+	"ANTHONY",
+	"LISA",
+	"KEVIN",
+	"NANCY",
+	"KAREN",
+	"BETTY",
+	"HELEN",
+	"JASON",
+	"MATTHEW",
+	"GARY",
+	"TIMOTHY",
+	"SANDRA",
+	"JOSE",
+	"LARRY",
+	"JEFFREY",
+	"FRANK",
+	"DONNA",
+	"CAROL",
+	"RUTH",
+	"SCOTT",
+	"ERIC",
+	"STEPHEN",
+	"ANDREW",
+	"SHARON",
+	"MICHELLE",
+	"LAURA",
+	"SARAH",
+	"KIMBERLY",
+	"DEBORAH",
+	"JESSICA",
+	"RAYMOND",
+	"SHIRLEY",
+	"CYNTHIA",
+	"ANGELA",
+	"MELISSA",
+	"BRENDA",
+	"AMY",
+	"JERRY",
+	"GREGORY",
+	"ANNA",
+	"JOSHUA",
+	"VIRGINIA",
+	"REBECCA",
+	"KATHLEEN",
+	"DENNIS",
+	"PAMELA",
+	"MARTHA",
+	"DEBRA",
+	"AMANDA",
+	"WALTER",
+	"STEPHANIE",
+	"WILLIE",
+	"PATRICK",
+	"TERRY",
+	"CAROLYN",
+	"PETER",
+	"CHRISTINE",
+	"MARIE",
+	"JANET",
+	"FRANCES",
+	"CATHERINE",
+	"HAROLD",
+	"HENRY",
+	"DOUGLAS",
+	"JOYCE",
+	"ANN",
+	"DIANE",
+	"ALICE",
+	"JEAN"
+    ]
+}}
+
+var dictionaryCountries =
+{"dictionary": {
+    "entry": [
+	"Afghanistan",
+	"Albania",
+	"Algeria",
+	"Andorra",
+	"Angola",
+	"Argentina",
+	"Armenia",
+	"Australia",
+	"Austria",
+	"Azerbaijan",
+	"Bahamas",
+	"Bahrain",
+	"Bangladesh",
+	"Barbados",
+	"Belarus",
+	"Belgium",
+	"Belize",
+	"Benin",
+	"Bhutan",
+	"Bolivia",
+	"Bosnia Herzegovina",
+	"Botswana",
+	"Brazil",
+	"Brunei",
+	"Bulgaria",
+	"Burkina",
+	"Burundi",
+	"Cambodia",
+	"Cameroon",
+	"Canada",
+	"Cape Verde",
+	"Central African Rep",
+	"Chad",
+	"Chile",
+	"China",
+	"Colombia",
+	"Comoros",
+	"Congo",
+	"Congo Democratic Rep",
+	"Costa Rica",
+	"Croatia",
+	"Cuba",
+	"Cyprus",
+	"Czech Republic",
+	"Denmark",
+	"Djibouti",
+	"Dominica",
+	"Dominican Republic",
+	"East Timor",
+	"Ecuador",
+	"Egypt",
+	"El Salvador",
+	"Equatorial Guinea",
+	"Eritrea",
+	"Estonia",
+	"Ethiopia",
+	"Fiji",
+	"Finland",
+	"France",
+	"Gabon",
+	"Gambia",
+	"Georgia",
+	"Germany",
+	"Ghana",
+	"Greece",
+	"Grenada",
+	"Guatemala",
+	"Guinea",
+	"Guinea-Bissau",
+	"Guyana",
+	"Haiti",
+	"Honduras",
+	"Hungary",
+	"Iceland",
+	"India",
+	"Indonesia",
+	"Iran",
+	"Iraq",
+	"Ireland Republic",
+	"Israel",
+	"Italy",
+	"Ivory Coast",
+	"Jamaica",
+	"Japan",
+	"Jordan",
+	"Kazakhstan",
+	"Kenya",
+	"Kiribati",
+	"Korea North",
+	"Korea South",
+	"Kosovo",
+	"Kuwait",
+	"Kyrgyzstan",
+	"Laos",
+	"Latvia",
+	"Lebanon",
+	"Lesotho",
+	"Liberia",
+	"Libya",
+	"Liechtenstein",
+	"Lithuania",
+	"Luxembourg",
+	"Macedonia",
+	"Madagascar",
+	"Malawi",
+	"Malaysia",
+	"Maldives",
+	"Mali",
+	"Malta",
+	"Marshall Islands",
+	"Mauritania",
+	"Mauritius",
+	"Mexico",
+	"Micronesia",
+	"Moldova",
+	"Monaco",
+	"Mongolia",
+	"Montenegro",
+	"Morocco",
+	"Mozambique",
+	"Myanmar, Burma",
+	"Namibia",
+	"Nauru",
+	"Nepal",
+	"Netherlands",
+	"New Zealand",
+	"Nicaragua",
+	"Niger",
+	"Nigeria",
+	"Norway",
+	"Oman",
+	"Pakistan",
+	"Palau",
+	"Panama",
+	"Papua New Guinea",
+	"Paraguay",
+	"Peru",
+	"Philippines",
+	"Poland",
+	"Portugal",
+	"Qatar",
+	"Romania",
+	"Russian Federation",
+	"Rwanda",
+	"St Lucia",
+	"Samoa",
+	"San Marino",
+	"Saudi Arabia",
+	"Senegal",
+	"Serbia"
+    ]
+}}
+
+var dictionaryPropertyTypes =
+{"dictionary": {
+    "entry": [
+	"Duet",
+	"Condo",
+	"TownHome",
+	"SingleFamily",
+	"Land",
+  "Apartment",
+  "MultiFamily",
+  "Duplex",
+  "Deattached"
+    ]
+}}
+
+xdmp.documentInsert(
+  "/workshop/redaction/dictionary/names.json",
+  dictionaryNames
+);
+xdmp.documentInsert(
+  "/workshop/redaction/dictionary/countries.json",
+  dictionaryCountries
+);
+xdmp.documentInsert(
+  "/workshop/redaction/dictionary/property-types.json",
+  dictionaryPropertyTypes
+);
+"U6 Insert Dictionaries";</query><query name="1.Setup DB" focus="true" listorder="1" taborder="1" active="true" database="12237058196143102848" server="6116481189375756513" database-name="Schemas" server-name="App-Services" mode="xquery">xquery version "1.0-ml";
+import module namespace admin = "http://marklogic.com/xdmp/admin" at "/MarkLogic/admin.xqy";
+
+let $config := admin:get-configuration()
+let $config := admin:forest-create($config,"MLW2017_Demo-Forest",xdmp:host(), ())
+let $config := admin:database-create($config, "MLW2017_Demo", 
+                  xdmp:database("Security"), xdmp:database("Schemas"))                
+return admin:save-configuration($config);
+
+xquery version "1.0-ml";
+import module namespace admin = "http://marklogic.com/xdmp/admin" 
+  at "/MarkLogic/admin.xqy";
+(: Get the configuration with the new forest and database :)
+let $config := admin:get-configuration()
+(: Attach the forest to the database :)
+let $config := admin:database-attach-forest(
+  $config,
+  xdmp:database("MLW2017_Demo"), 
+  xdmp:forest("MLW2017_Demo-Forest"))
+(: Save the configuration :)
+return admin:save-configuration($config)
+
+</query><query name="3.Create Axis Indexes" focus="false" listorder="12" taborder="12" active="true" database="4481800011143609398" server="6116481189375756513" database-name="MLW2017_Demo" server-name="App-Services" mode="javascript">//Must run againt the MLW2017_Demo
+
+var admin = require("/MarkLogic/admin.xqy");
+var config = admin.getConfiguration();
+var dbid = xdmp.database("MLW2017_Demo");
+var systemStart = admin.databaseRangeFieldIndex(
+    "dateTime", "sys-start", "", fn.true() );
+var systemEnd   = admin.databaseRangeFieldIndex(
+    "dateTime", "sys-end", "", fn.true() );
+config = admin.databaseAddRangeFieldIndex(config, dbid, systemStart);
+config = admin.databaseAddRangeFieldIndex(config, dbid, systemEnd);
+admin.saveConfiguration(config);</query><query name="3.Create Axis" focus="false" listorder="13" taborder="13" active="true" database="4481800011143609398" server="6116481189375756513" database-name="MLW2017_Demo" server-name="App-Services" mode="javascript">//Must run againt the MLW2017_Demo
+
+
+var temporal = require("/MarkLogic/temporal.xqy");
+var systemResult = temporal.axisCreate(
+    "sys-axes", 
+    cts.fieldReference("sys-start", "type=dateTime"), 
+    cts.fieldReference("sys-end", "type=dateTime"));</query><query name="3.Create Temporal Collection" focus="false" listorder="14" taborder="14" active="true" database="4481800011143609398" server="6116481189375756513" database-name="MLW2017_Demo" server-name="App-Services" mode="javascript">//Must run againt the MLW2017_Demo
+
+var temporal = require("/MarkLogic/temporal.xqy");
+var collectionResult = temporal.collectionCreate(
+"demo", "sys-axes");</query><query name="3.Insert Doc Temporal" focus="false" listorder="16" taborder="16" active="true" database="4481800011143609398" server="6116481189375756513" database-name="MLW2017_Demo" server-name="App-Services" mode="javascript">//Must run againt the MLW2017_Demo
+
+var temporal = require("/MarkLogic/temporal.xqy");
+var doc = {
+  "policy" : {
+    "client" : {
+      "access" : "ID_read",
+      "name" : "Paul", 
+      "last4ssn" : "5664",
+   },
+    "clientSSN" : { 
+      "access" : "Compliance",
+      "ssn" : "999-99-5664"
+    },
+    "clientIncome" : {
+      "access" : "Risk",
+      "income" : "44,444"
+    },
+    "info" : {
+      "access" : "Risk",
+      "propertyType" : "Home",
+      "premium": 425,
+      "assetValue" : 750000,
+     }
+  }
+}
+declareUpdate();
+temporal.documentInsert("demo", "demo_policy.json", doc, {permissions : [xdmp.permission("Reader", "read")]});</query><query name="3.Add metadata fields" focus="false" listorder="11" taborder="11" active="true" database="4481800011143609398" server="6116481189375756513" database-name="MLW2017_Demo" server-name="App-Services" mode="javascript">//Must run againt the MLW2017_Demo
+
+var admin = require("/MarkLogic/admin.xqy");
+var config = admin.getConfiguration();
+var dbid = xdmp.database("MLW2017_Demo");
+var sysStart = admin.databaseMetadataField("sys-start");
+var sysEnd   = admin.databaseMetadataField("sys-end");
+config = admin.databaseAddField(config, dbid, sysStart);
+config = admin.databaseAddField(config, dbid, sysEnd);
+
+admin.saveConfiguration(config);
+</query><query name="3.Protect" focus="false" listorder="17" taborder="17" active="true" database="4481800011143609398" server="6116481189375756513" database-name="MLW2017_Demo" server-name="App-Services" mode="javascript">//Must run againt the MLW2017_Demo
+
+declareUpdate();
+var temporal = require("/MarkLogic/temporal.xqy");
+
+temporal.documentProtect ("demo", "demo_policy.json", 
+    {level: "noUpdate", duration: "PT30S"})
+</query><query name="3.Update" focus="false" listorder="18" taborder="18" active="true" database="4481800011143609398" server="6116481189375756513" database-name="MLW2017_Demo" server-name="App-Services" mode="javascript">//Must run againt the MLW2017_Demo
+
+var temporal = require("/MarkLogic/temporal.xqy");
+var doc = {
+  "policy" : {
+    "client" : {
+      "access" : "ID_read",
+      "name" : "Paul", 
+      "last4ssn" : "5664",
+   },
+    "clientSSN" : { 
+      "access" : "Compliance",
+      "ssn" : "999-99-5664"
+    },
+    "clientIncome" : {
+      "access" : "Risk",
+      "income" : "94,444"
+    },
+    "info" : {
+      "access" : "Risk",
+      "propertyType" : "Home",
+      "premium": 432,
+      "assetValue" : 750000,
+     }
+  }
+}
+declareUpdate();
+temporal.documentInsert("demo", "demo_policy.json", doc, {permissions : [xdmp.permission("Reader", "read")]});
+</query><query name="3.Clear Data" focus="false" listorder="15" taborder="15" active="true" database="4481800011143609398" server="6116481189375756513" database-name="MLW2017_Demo" server-name="App-Services" mode="xquery">xquery version "1.0-ml";
+
+(:Must clear the MLW2017_Demo database to complete the compliance demo:)
+
+declare namespace html = "http://www.w3.org/1999/xhtml";
+ import module namespace admin = "http://marklogic.com/xdmp/admin" 
+		  at "/MarkLogic/admin.xqy";
+      
+
+
+let $config := admin:get-configuration()
+  return
+let $forests := admin:database-get-attached-forests($config, xdmp:database("MLW2017_Demo"))
+  return
+xdmp:forest-clear($forests)
+</query><query name="3.Delete Document" focus="false" listorder="19" taborder="19" active="true" database="4481800011143609398" server="6116481189375756513" database-name="MLW2017_Demo" server-name="App-Services" mode="javascript">//Must run againt the MLW2017_Demo
+
+declareUpdate();
+var temporal = require("/MarkLogic/temporal.xqy");
+
+var curtime = fn.currentDateTime()
+var exptime = xs.dateTime (xdmp.documentGetMetadataValue("demo_policy.json","temporalProtectExTime"))
+if (exptime.lt(curtime)) {var result4 = temporal.documentWipe("demo", "demo_policy.json")}
+else {"This document is protected or does not exist"}
+
+
+</query><query name="1.ELS Query" focus="false" listorder="7" taborder="7" active="true" database="4481800011143609398" server="6116481189375756513" database-name="MLW2017_Demo" server-name="App-Services" mode="javascript">'use strict';
+
+//Must run againt the MLW2017_Demo
+
+
+/** Invokes any function as a specific user */
+const asUser = (fn, user) =&gt;
+  xdmp.invokeFunction(fn, { userId: xdmp.user(user) });
+
+/** The actual function that does the work. */
+function _readDocs(uri) {
+  return cts.doc(uri);
+}
+
+/** A new synthetic function that combines the actual function and the user swithcing */
+const readDocs = (uri, user) =&gt;
+  asUser((/* zero params*/) =&gt; _readDocs(uri), user);
+
+const users = ['US_CallCenter', 'US_Financial_Risk_Officer', 'US_Compliance_Admin'];
+const policy = 'demo_policy.json' 
+const out = [];
+let i = 0;
+for(const result of users.map(user =&gt; readDocs(policy, user))) {
+  out.push(`------------ ${users[i++]} ------------`);
+  out.push(result);
+}
+out;</query><query name="Clear USer and Roles" focus="false" listorder="21" taborder="21" active="true" database="9818679024805626011" server="13031079473005161838" database-name="Security" server-name="Admin" mode="xquery">xquery version "1.0-ml";
+
+import module namespace sec="http://marklogic.com/xdmp/security" at "/MarkLogic/security.xqy";
+
+(:HELPER function to clear the roles and users database if you are stuck:)
+
+declare variable $ROLES := ("ID_Read","US_Read", "Compliance", "Risk");
+
+for $rolenum in 1 to fn:count($ROLES)
+    return
+    if (sec:role-exists($ROLES[$rolenum])) then 
+      let $qry := 'import module namespace sec="http://marklogic.com/xdmp/security" at "/MarkLogic/security.xqy"; declare variable $role external; sec:remove-role($role)'
+      return xdmp:eval($qry, (xs:QName("role"), $ROLES[$rolenum]))
+    else ()
+;
+
+
+import module namespace sec="http://marklogic.com/xdmp/security" at "/MarkLogic/security.xqy";
+declare variable $USERS := ("US_CallCenter","US_Financial_Risk_Officer","US_Compliance_Admin");
+
+for $usernum in 1 to fn:count($USERS)
+    return
+    if (sec:user-exists($USERS[$usernum])) then 
+      sec:remove-user($USERS[$usernum])
+    else ()
+
+</query></workspace></export>
